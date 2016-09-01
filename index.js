@@ -1,20 +1,35 @@
 var express = require('express');
+var mongoose = require('mongoose');
 var app = express();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
+
+mongoose.connect("mongodb://localhost/messages");
+var Message = mongoose.model("Message", new mongoose.Schema({
+  text: String
+}));
 
 app.use("/assets", express.static("public"));
 app.get('/', function(req, res){
   res.sendFile(__dirname + '/index.html');
 });
 
-io.on('connection', function(socket) {
-  console.log('a user connected');
-  socket.on('chat message', function(msg){
-  	io.emit('chat message', msg);
+app.get("/api/messages", function (req, res) {
+  Message.find({}).lean().exec().then(function (messages) {
+    res.json(messages);
+  })
+})
+
+io.on('connection', function(socket){
+  socket.on('chat message', function(msg) {
+    io.emit('chat message', msg);
+    if (msg) Message.create({text: msg});
   });
-  socket.on('disconnect', function(){
-    console.log('user disconnected');
+  socket.on('delete message', function(msg) {
+    io.emit('delete message', msg);
+    Message.findOneAndRemove({ _id: msg._id }).then(function() {
+      console.log("Deleted")
+    });
   });
 });
 

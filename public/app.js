@@ -1,23 +1,51 @@
 (function() {
 	angular
-	.module("web-sockets", [])
+	.module("web-sockets", ["ngResource"])
+	.factory("MessageFactory", [ "$resource", Message ])
 	.controller("wsController", [
 		"$scope",
+		"MessageFactory",
 		wsControllerFunction
 	])
-
-	function wsControllerFunction($scope) {
-		var vm = this;
-		vm.messages = []
+	function Message($resource) {
+		return $resource("/api/messages", {}, {
+			method: { update: "PUT" }
+		});
+	}
+	function wsControllerFunction($scope, MessageFactory) {
 		var socket = io();
-      vm.send = function() {
-      	socket.emit('chat message', vm.msg);
-      	vm.msg = '';
+		var vm = this;
+
+		MessageFactory.query().$promise.then(function (messages) {
+			vm.messages = messages;
+		});
+
+		vm.newMessage = '';
+
+	   vm.sendMessage = function () {
+			socket.emit('chat message', vm.newMessage)
+			vm.newMessage = '';
 		}
-		socket.on('chat message', function(msg){
-        $scope.$apply(function() {
-          vm.messages.push(msg)
-        })
-      });
+		
+		vm.delete = function(msg) {
+			socket.emit('delete message', msg);
+		}
+
+		socket.on('chat message', function (msg) {
+			if(msg) {
+				$scope.$apply(function () {
+					vm.messages.push({text: msg})
+				})
+			}
+		});
+
+		socket.on('delete message', function (msg) {
+			$scope.$apply(function () {
+				MessageFactory.query().$promise.then(function (messages) {
+					vm.messages = messages;
+				});
+			})
+		});
+	
 	}
 }())
